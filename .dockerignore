@@ -1,0 +1,42 @@
+# VCS and CI metadata
+.git
+.gitignore
+.github
+
+# Virtual environments and local env files
+.venv
+venv
+env
+.env
+.env.*
+
+# Python caches and build artifacts
+__pycache__
+**/__pycache__
+*.py[cod]
+*.egg-info
+build
+dist
+
+# Test and coverage caches (tests/ itself is kept)
+.pytest_cache
+**/.pytest_cache
+.coverage
+.coverage.*
+htmlcov
+.tox
+.nox
+.mypy_cache
+.ruff_cache
+
+# Runtime artifacts written by the app
+uploaded_file
+
+# Editor and OS files
+.vscode
+.idea
+.DS_Store
+
+# Docker files themselves
+Dockerfile
+.dockerignore
