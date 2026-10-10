@@ -11,9 +11,11 @@ RUN apt-get update \
     && apt-get upgrade -y \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies (all have prebuilt cp312 wheels, no compiler needed)
+# Install Python dependencies (all have prebuilt cp312 wheels, no compiler needed).
+# Upgrade the base image's pip first (CVE-2026-8643, fixed in pip 26.1.2).
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip==26.2.1 \
+    && pip install --no-cache-dir -r requirements.txt
 
 # Copy the application source (filtered by .dockerignore)
 COPY . .
