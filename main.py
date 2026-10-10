@@ -7,10 +7,50 @@ weak authentication mechanisms. The purpose is to highlight vulnerabilities
 for educational purposes.
 """
 
+import os
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
 app = FastAPI()
+
+# Base directory that /read_file may serve files from.
+# Override with the READ_FILE_BASE_DIR environment variable.
+DEFAULT_READ_FILE_BASE_DIR = Path(__file__).resolve().parent / "files"
+
+
+def get_read_file_base_dir() -> Path:
+    """
+    Return the resolved base directory for the /read_file endpoint.
+
+    Returns:
+        Path: The absolute, resolved base directory.
+    """
+    return Path(
+        os.environ.get("READ_FILE_BASE_DIR", str(DEFAULT_READ_FILE_BASE_DIR))
+    ).resolve()
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """
+    Add security response headers to every response.
+
+    Sets X-Content-Type-Options and Cross-Origin-Resource-Policy.
+
+    Args:
+        request (Request): The incoming request.
+        call_next: The next handler in the middleware chain.
+
+    Returns:
+        Response: The response with the security headers set.
+    """
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+    return response
+
 
 # Example of hardcoded secrets
 API_SECRET = "1234567890"
@@ -47,27 +87,35 @@ def get_user(username: str):
 
 @app.get("/read_file")
 def read_file(file_path: str):
-    # pylint: disable=raise-missing-from
     """
     Endpoint to read the contents of a file.
 
-    Demonstrates a directory traversal vulnerability by allowing direct file
-    path input without validation or sanitization.
+    The path is resolved against the allowed base directory. Absolute paths
+    and paths that resolve outside the base directory are rejected.
 
     Args:
-        file_path (str): The file path to read.
+        file_path (str): The file path to read, relative to the base directory.
 
     Returns:
         dict: The contents of the file.
 
     Raises:
-        HTTPException: If the file cannot be read.
+        HTTPException: 400 for a path outside the base directory, 404 if the
+            file does not exist, 500 if the file cannot be read.
     """
+    base_dir = get_read_file_base_dir()
+    if Path(file_path).is_absolute():
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    target = (base_dir / file_path).resolve()
+    if not target.is_relative_to(base_dir):
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
     try:
-        with open(file_path, "r", encoding="utf-8") as file:
+        with open(target, "r", encoding="utf-8") as file:
             return {"content": file.read()}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except (OSError, UnicodeDecodeError) as exc:
+        raise HTTPException(status_code=500, detail="Could not read file") from exc
 
 
 @app.get("/error")
